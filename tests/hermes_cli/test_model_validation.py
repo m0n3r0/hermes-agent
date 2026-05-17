@@ -365,13 +365,17 @@ class TestCopilotNormalization:
         """gpt-5-mini is the exception — uses Chat Completions."""
         assert copilot_model_api_mode("gpt-5-mini") == "chat_completions"
 
-    def test_copilot_api_mode_non_gpt5_uses_chat(self):
-        """Non-GPT-5 models use Chat Completions."""
+    def test_copilot_api_mode_non_gpt5_routes_by_family(self):
+        """Non-GPT-5 models default to Chat Completions except Claude.
+
+        Copilot-hosted Claude models use the Anthropic Messages surface; otherwise
+        they fail with `does not support Responses API` / wrong-endpoint errors.
+        """
         assert copilot_model_api_mode("gpt-4.1") == "chat_completions"
         assert copilot_model_api_mode("gpt-4o") == "chat_completions"
         assert copilot_model_api_mode("gpt-4o-mini") == "chat_completions"
-        assert copilot_model_api_mode("claude-sonnet-4.6") == "chat_completions"
-        assert copilot_model_api_mode("claude-opus-4.6") == "chat_completions"
+        assert copilot_model_api_mode("claude-sonnet-4.6") == "anthropic_messages"
+        assert copilot_model_api_mode("claude-opus-4.6") == "anthropic_messages"
         assert copilot_model_api_mode("gemini-2.5-pro") == "chat_completions"
 
     def test_copilot_api_mode_with_catalog_both_endpoints(self):

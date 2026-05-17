@@ -4211,6 +4211,7 @@ class HermesCLI:
                 requested=self.requested_provider,
                 explicit_api_key=self._explicit_api_key,
                 explicit_base_url=self._explicit_base_url,
+                target_model=self.model,
             )
         except Exception as exc:
             _primary_exc = exc
@@ -4226,7 +4227,10 @@ class HermesCLI:
                     if not _fb_provider or not _fb_model:
                         continue
                     try:
-                        runtime = resolve_runtime_provider(requested=_fb_provider)
+                        runtime = resolve_runtime_provider(
+                            requested=_fb_provider,
+                            target_model=_fb_model,
+                        )
                         logger.warning(
                             "Primary provider auth failed (%s). Falling through to fallback: %s/%s",
                             _primary_exc, _fb_provider, _fb_model,
@@ -4325,6 +4329,34 @@ class HermesCLI:
         # Normalize model for the resolved provider (e.g. swap non-Codex
         # models when provider is openai-codex).  Fixes #651.
         model_changed = self._normalize_model_for_provider(resolved_provider)
+
+        # One-shot CLI probes pass explicit --model values directly to HermesCLI,
+        # bypassing the interactive /model switch validation path.  For Copilot,
+        # validate explicit model choices locally so unknown IDs cannot produce
+        # misleading success replies from backend/default-model aliases.  Friendly
+        # aliases such as "mythos" are normalized above before this check.
+        if resolved_provider == "copilot" and not self._model_is_default:
+            try:
+                from hermes_cli.models import validate_requested_model
+
+                validation = validate_requested_model(
+                    self.model,
+                    resolved_provider,
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    api_mode=self.api_mode,
+                )
+            except Exception as exc:
+                logger.debug("Copilot model validation skipped after error: %s", exc)
+                validation = {"accepted": True}
+            if not validation.get("accepted", True):
+                message = validation.get("message") or f"Model `{self.model}` is not available for GitHub Copilot."
+                ChatConsole().print(f"[bold red]{message}[/]")
+                return False
+            corrected_model = validation.get("corrected_model")
+            if corrected_model and isinstance(corrected_model, str) and corrected_model != self.model:
+                self.model = corrected_model
+                model_changed = True
 
         # AIAgent/OpenAI client holds auth at init time, so rebuild if key,
         # routing, or the effective model changed.

@@ -213,6 +213,7 @@ _PROVIDER_MODELS: dict[str, list[str]] = {
         "gpt-4.1",
         "gpt-4o",
         "gpt-4o-mini",
+        "claude-opus-4.7",
         "claude-sonnet-4.6",
         "claude-sonnet-4",
         "claude-sonnet-4.5",
@@ -2775,21 +2776,31 @@ _COPILOT_MODEL_ALIASES = {
     "openai/o3-mini": "gpt-5-mini",
     "openai/o4-mini": "gpt-5-mini",
     "anthropic/claude-opus-4.6": "claude-opus-4.6",
+    "anthropic/claude-opus-4.7": "claude-opus-4.7",
     "anthropic/claude-sonnet-4.6": "claude-sonnet-4.6",
     "anthropic/claude-sonnet-4": "claude-sonnet-4",
     "anthropic/claude-sonnet-4.5": "claude-sonnet-4.5",
     "anthropic/claude-haiku-4.5": "claude-haiku-4.5",
+    # Friendly aliases for the current restricted-preview/next-Opus target the
+    # user calls "Mythos". Keep these as aliases only: if Copilot later
+    # publishes a literal `claude-mythos` model id, catalog matching below will
+    # still accept the exact id when this alias is removed/updated.
+    "mythos": "claude-opus-4.7",
+    "claude-mythos": "claude-opus-4.7",
+    "anthropic/claude-mythos": "claude-opus-4.7",
     # Dash-notation fallbacks: Hermes' default Claude IDs elsewhere use
     # hyphens (anthropic native format), but Copilot's API only accepts
     # dot-notation.  Accept both so users who configure copilot + a
     # default hyphenated Claude model don't hit HTTP 400
     # "model_not_supported".  See issue #6879.
     "claude-opus-4-6": "claude-opus-4.6",
+    "claude-opus-4-7": "claude-opus-4.7",
     "claude-sonnet-4-6": "claude-sonnet-4.6",
     "claude-sonnet-4-0": "claude-sonnet-4",
     "claude-sonnet-4-5": "claude-sonnet-4.5",
     "claude-haiku-4-5": "claude-haiku-4.5",
     "anthropic/claude-opus-4-6": "claude-opus-4.6",
+    "anthropic/claude-opus-4-7": "claude-opus-4.7",
     "anthropic/claude-sonnet-4-6": "claude-sonnet-4.6",
     "anthropic/claude-sonnet-4-0": "claude-sonnet-4",
     "anthropic/claude-sonnet-4-5": "claude-sonnet-4.5",
@@ -2906,6 +2917,9 @@ def copilot_model_api_mode(
         return "codex_responses"
 
     # Secondary: check catalog for non-GPT-5 models (Claude via /v1/messages, etc.)
+    if normalized.startswith("claude-"):
+        return "anthropic_messages"
+
     if catalog:
         catalog_entry = next((item for item in catalog if item.get("id") == normalized), None)
         if isinstance(catalog_entry, dict):
@@ -3464,7 +3478,7 @@ def validate_requested_model(
         }
 
     # Providers with non-standard catalog validation — /v1/models probing is not the right path.
-    if normalized in {"openai-codex", "xai-oauth"}:
+    if normalized in {"openai-codex", "xai-oauth", "copilot"}:
         try:
             catalog_models = provider_model_ids(normalized)
         except Exception:
@@ -3491,7 +3505,22 @@ def validate_requested_model(
             suggestion_text = ""
             if suggestions:
                 suggestion_text = "\n  Similar models: " + ", ".join(f"`{s}`" for s in suggestions)
-            provider_label = "OpenAI Codex" if normalized == "openai-codex" else "xAI Grok OAuth (SuperGrok Subscription)"
+            if normalized == "openai-codex":
+                provider_label = "OpenAI Codex"
+            elif normalized == "xai-oauth":
+                provider_label = "xAI Grok OAuth (SuperGrok Subscription)"
+            else:
+                provider_label = "GitHub Copilot"
+            if normalized == "copilot":
+                return {
+                    "accepted": False,
+                    "persist": False,
+                    "recognized": False,
+                    "message": (
+                        f"Model `{requested}` was not found in the {provider_label} model listing."
+                        f"{suggestion_text}"
+                    ),
+                }
             return {
                 "accepted": True,
                 "persist": True,

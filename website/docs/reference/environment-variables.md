@@ -325,8 +325,8 @@ For cloud sandbox backends, persistence is filesystem-oriented. `TERMINAL_LIFETI
 | `FEISHU_APP_SECRET` | Feishu/Lark bot App Secret |
 | `FEISHU_DOMAIN` | `feishu` (China) or `lark` (international). Default: `feishu` |
 | `FEISHU_CONNECTION_MODE` | `websocket` (recommended) or `webhook`. Default: `websocket` |
-| `FEISHU_ENCRYPT_KEY` | Optional encryption key for webhook mode |
-| `FEISHU_VERIFICATION_TOKEN` | Optional verification token for webhook mode |
+| `FEISHU_ENCRYPT_KEY` | Optional encryption key for webhook mode. Required with `FEISHU_VERIFICATION_TOKEN` absent when binding webhook mode to a network-accessible address. |
+| `FEISHU_VERIFICATION_TOKEN` | Optional verification token for webhook mode. Required with `FEISHU_ENCRYPT_KEY` absent when binding webhook mode to a network-accessible address. |
 | `FEISHU_ALLOWED_USERS` | Comma-separated Feishu user IDs allowed to message the bot |
 | `FEISHU_ALLOW_BOTS` | `none` (default) / `mentions` / `all` — accept inbound messages from other bots. See [bot-to-bot messaging](../user-guide/messaging/feishu.md#bot-to-bot-messaging) |
 | `FEISHU_REQUIRE_MENTION` | `true` (default) / `false` — whether group messages must @mention the bot. Override per-chat via `group_rules.<chat_id>.require_mention`. |

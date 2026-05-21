@@ -1538,6 +1538,44 @@ class TestAdapterBehavior(unittest.TestCase):
         self.assertEqual(response.status, 200)
         adapter._on_message_event.assert_called_once()
 
+    @patch.dict(os.environ, {"FEISHU_VERIFICATION_TOKEN": "expected-token"}, clear=True)
+    def test_url_verification_requires_configured_verification_token(self):
+        from gateway.config import PlatformConfig
+        from gateway.platforms.feishu import FeishuAdapter
+
+        adapter = FeishuAdapter(PlatformConfig())
+        body = json.dumps({
+            "type": "url_verification",
+            "token": "wrong-token",
+            "challenge": "attacker-controlled-challenge",
+        }).encode("utf-8")
+        request = SimpleNamespace(
+            remote="203.0.113.10",
+            content_length=None,
+            headers={},
+            read=AsyncMock(return_value=body),
+        )
+
+        response = asyncio.run(adapter._handle_webhook_request(request))
+
+        self.assertEqual(response.status, 401)
+
+    @patch.dict(os.environ, {"FEISHU_CONNECTION_MODE": "webhook"}, clear=True)
+    def test_network_webhook_refuses_to_start_without_verification_secret(self):
+        from gateway.config import PlatformConfig
+        from gateway.platforms.feishu import FeishuAdapter
+
+        adapter = FeishuAdapter(
+            PlatformConfig(
+                extra={
+                    "webhook_host": "0.0.0.0",
+                    "connection_mode": "webhook",
+                }
+            )
+        )
+
+        self.assertFalse(asyncio.run(adapter.connect()))
+
     @patch.dict(os.environ, {}, clear=True)
     def test_process_inbound_message_uses_event_sender_identity_only(self):
         from gateway.config import PlatformConfig

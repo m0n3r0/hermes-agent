@@ -1642,6 +1642,12 @@ class FeishuAdapter(BasePlatformAdapter):
                 self._connection_mode,
             )
             return False
+        if self._connection_mode == "webhook" and self._webhook_requires_secret() and not self._has_webhook_secret():
+            logger.error(
+                "[Feishu] Refusing to start network-accessible webhook listener without "
+                "FEISHU_VERIFICATION_TOKEN or FEISHU_ENCRYPT_KEY"
+            )
+            return False
 
         try:
             self._app_lock_identity = self._app_id
@@ -3229,11 +3235,6 @@ class FeishuAdapter(BasePlatformAdapter):
             self._record_webhook_anomaly(remote_ip, "400")
             return web.json_response({"code": 400, "msg": "invalid json"}, status=400)
 
-        # URL verification challenge — respond before other checks so that Feishu's
-        # subscription setup works even before encrypt_key is wired.
-        if payload.get("type") == "url_verification":
-            return web.json_response({"challenge": payload.get("challenge", "")})
-
         # Verification token check — second layer of defence beyond signature (matches openclaw).
         if self._verification_token:
             header = payload.get("header") or {}
@@ -3242,6 +3243,12 @@ class FeishuAdapter(BasePlatformAdapter):
                 logger.warning("[Feishu] Webhook rejected: invalid verification token from %s", remote_ip)
                 self._record_webhook_anomaly(remote_ip, "401-token")
                 return web.Response(status=401, text="Invalid verification token")
+
+        # URL verification challenge — Feishu includes the verification token in
+        # challenge requests. Validate it before reflecting the challenge so an
+        # unauthenticated remote request cannot prove endpoint control.
+        if payload.get("type") == "url_verification":
+            return web.json_response({"challenge": payload.get("challenge", "")})
 
         # Timing-safe signature verification (only enforced when encrypt_key is set).
         if self._encrypt_key and not self._is_webhook_signature_valid(request.headers, body_bytes):
@@ -3296,6 +3303,13 @@ class FeishuAdapter(BasePlatformAdapter):
         except Exception:
             logger.debug("[Feishu] Signature verification raised an exception", exc_info=True)
             return False
+
+    def _has_webhook_secret(self) -> bool:
+        return bool(self._verification_token or self._encrypt_key)
+
+    def _webhook_requires_secret(self) -> bool:
+        host = (self._webhook_host or "").strip().lower()
+        return host in {"0.0.0.0", "::", ""}
 
     def _check_webhook_rate_limit(self, rate_key: str) -> bool:
         """Return False when the composite rate_key has exceeded _FEISHU_WEBHOOK_RATE_LIMIT_MAX.

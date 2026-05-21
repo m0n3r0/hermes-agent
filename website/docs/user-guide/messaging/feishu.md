@@ -93,7 +93,7 @@ FEISHU_WEBHOOK_PORT=8765         # default: 8765
 FEISHU_WEBHOOK_PATH=/feishu/webhook  # default: /feishu/webhook
 ```
 
-When Feishu sends a URL verification challenge (`type: url_verification`), the webhook responds automatically so you can complete the subscription setup in the Feishu developer console.
+When Feishu sends a URL verification challenge (`type: url_verification`), the webhook responds automatically so you can complete the subscription setup in the Feishu developer console. If you bind the webhook server to a network-accessible address such as `0.0.0.0`, configure `FEISHU_VERIFICATION_TOKEN` or `FEISHU_ENCRYPT_KEY`; Hermes refuses to start a public Feishu webhook listener without one of these webhook secrets.
 
 ## Step 3: Configure Hermes
 
@@ -172,7 +172,7 @@ SHA256(timestamp + nonce + encrypt_key + body)
 The computed hash is compared against the `x-lark-signature` header using timing-safe comparison. Requests with invalid or missing signatures are rejected with HTTP 401.
 
 :::tip
-In WebSocket mode, signature verification is handled by the SDK itself, so `FEISHU_ENCRYPT_KEY` is optional. In webhook mode, it is strongly recommended for production.
+In WebSocket mode, signature verification is handled by the SDK itself, so `FEISHU_ENCRYPT_KEY` is optional. In webhook mode, set either `FEISHU_ENCRYPT_KEY` or `FEISHU_VERIFICATION_TOKEN` before exposing the listener beyond localhost.
 :::
 
 ### Verification Token
@@ -183,7 +183,7 @@ An additional layer of authentication that checks the `token` field inside webho
 FEISHU_VERIFICATION_TOKEN=your-verification-token
 ```
 
-This token is also found in the **Event Subscriptions** section of your Feishu app. When set, every inbound webhook payload must contain a matching `token` in its `header` object. Mismatched tokens are rejected with HTTP 401.
+This token is also found in the **Event Subscriptions** section of your Feishu app. When set, every inbound webhook payload, including URL verification challenges, must contain a matching `token` in its `header` object or top-level `token` field. Mismatched tokens are rejected with HTTP 401.
 
 Both `FEISHU_ENCRYPT_KEY` and `FEISHU_VERIFICATION_TOKEN` can be used together for defense in depth.
 
